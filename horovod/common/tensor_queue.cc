@@ -105,6 +105,8 @@ void TensorQueue::GetTensorEntriesFromResponse(
     int64_t i = 0;
     for (auto& name : response.tensor_names()) {
       assert(response.response_type() == Response::ALLREDUCE ||
+             response.response_type() == Response::ALLREDUCE_MIN ||
+             response.response_type() == Response::ALLREDUCE_MAX ||
              response.response_type() == Response::ALLGATHER ||
              response.response_type() == Response::BROADCAST ||
              response.response_type() == Response::ALLTOALL ||

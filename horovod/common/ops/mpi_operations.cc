@@ -59,14 +59,24 @@ Status MPIAllreduce::Execute(std::vector<TensorTableEntry>& entries, const Respo
   timeline.ActivityStartAll(entries, MPI_ALLREDUCE);
   const void* sendbuf = entries.size() > 1 || fused_input_data == buffer_data
                         ? MPI_IN_PLACE : fused_input_data;
-  int op =
+  MPI_Op op;
+  switch (response.response_type()) {
+    case Response::ResponseType::ALLREDUCE:
+      op = mpi_context.GetMPISumOp(first_entry.tensor->dtype());
+    case Response::ResponseType::ALLREDUCE_MIN:
+      op = mpi_context.GetMPIMinOp(first_entry.tensor->dtype());
+    case Response::ResponseType::ALLREDUCE_MAX:
+      op = mpi_context.GetMPIMaxOp(first_entry.tensor->dtype());
+    default:
+      throw std::logic_error("MPI_Allreduce operation not supported.");
+  }
+  int reduce_result =
       MPI_Allreduce(sendbuf, buffer_data, (int)num_elements,
                     mpi_context.GetMPIDataType(first_entry.tensor),
-                    mpi_context.GetMPISumOp(first_entry.tensor->dtype()),
-                    mpi_context.GetMPICommunicator(Communicator::GLOBAL));
-  if (op != MPI_SUCCESS) {
-    throw std::runtime_error("MPI_Allreduce failed, see MPI output for details.");
-  }
+                    op, mpi_context.GetMPICommunicator(Communicator::GLOBAL));
+      if (reduce_result != MPI_SUCCESS) {
+        throw std::runtime_error("MPI_Allreduce failed, see MPI output for details.");
+      }
   timeline.ActivityEndAll(entries);
 
   if (response.postscale_factor() != 1.0) {

@@ -450,6 +450,8 @@ ResponseList Controller::ComputeResponseList(bool this_process_requested_shutdow
     // order consistently across workers.
     for (auto& response : response_list.responses()) {
       if ((response.response_type() == Response::ResponseType::ALLREDUCE ||
+           response.response_type() == Response::ResponseType::ALLREDUCE_MIN ||
+           response.response_type() == Response::ResponseType::ALLREDUCE_MAX ||
            response.response_type() == Response::ResponseType::ALLGATHER ||
            response.response_type() == Response::ResponseType::ADASUM ||
            response.response_type() == Response::ResponseType::ALLTOALL) &&
@@ -528,11 +530,20 @@ Response Controller::ConstructResponse(const std::string& name, int joined_size)
     }
   }
 
+#if !HAVE_MPI || HAVE_GPU
+  if (message_type == Request::ALLREDUCE_MIN || message_type == Request::ALLREDUCE_MAX) {
+    error = true;
+    error_message_stream << "ALLREDUCE_MIN and ALLREDUCE_MAX  are only supported for MPI using CPU" << ".";
+  }
+#endif
+
   // If we are doing an allreduce or broadcast, check that all tensor shapes are
   // identical.
   if (message_type == Request::ALLREDUCE ||
       message_type == Request::ADASUM ||
-      message_type == Request::BROADCAST) {
+      message_type == Request::BROADCAST ||
+      message_type == Request::ALLREDUCE_MIN ||
+      message_type == Request::ALLREDUCE_MAX) {
     TensorShape tensor_shape;
     for (auto dim : requests[0].tensor_shape()) {
       tensor_shape.AddDim(dim);
@@ -665,7 +676,7 @@ Response Controller::ConstructResponse(const std::string& name, int joined_size)
     }
   }
 
-  if (message_type == Request::ALLREDUCE || message_type == Request::ADASUM) {
+  if (message_type == Request::ALLREDUCE || message_type == Request::ADASUM || message_type == Request::ALLREDUCE_MIN || message_type == Request::ALLREDUCE_MAX) {
     TensorShape tensor_shape;
     for (auto dim : requests[0].tensor_shape()) {
       tensor_shape.AddDim(dim);
@@ -744,6 +755,18 @@ Response Controller::ConstructResponse(const std::string& name, int joined_size)
     response.set_tensor_type(data_type);
     response.set_prescale_factor(prescale_factor);
     response.set_postscale_factor(postscale_factor);
+  } else if (message_type == Request::ALLREDUCE_MIN) {
+    response.set_response_type(Response::ALLREDUCE_MIN);
+    for (auto dim : tensor_sizes) {
+      response.add_tensor_size(dim);
+    }
+    response.set_tensor_type(data_type);
+  } else if (message_type == Request::ALLREDUCE_MAX) {
+    response.set_response_type(Response::ALLREDUCE_MAX);
+    for (auto dim : tensor_sizes) {
+      response.add_tensor_size(dim);
+    }
+    response.set_tensor_type(data_type);
   } else if (message_type == Request::BROADCAST) {
     response.set_response_type(Response::BROADCAST);
   } else if (message_type == Request::ALLTOALL) {
@@ -805,7 +828,9 @@ void Controller::FuseResponses(std::deque<Response>& responses,
     responses.pop_front();
     int64_t tensor_size = 0;
     if (response.response_type() == Response::ResponseType::ALLREDUCE ||
-        response.response_type() == Response::ResponseType::ADASUM) {
+        response.response_type() == Response::ResponseType::ADASUM ||
+        response.response_type() == Response::ResponseType::ALLREDUCE_MIN ||
+        response.response_type() == Response::ResponseType::ALLREDUCE_MAX) {
       // Attempt to add more responses to this fused response.
 
       tensor_size = response.tensor_sizes()[0] * GetTypeSize(response.tensor_type());

@@ -35,9 +35,9 @@ from horovod.tensorflow.mpi_ops import mpi_threads_supported, mpi_enabled, mpi_b
 from horovod.tensorflow.mpi_ops import gloo_enabled, gloo_built
 from horovod.tensorflow.mpi_ops import nccl_built, ddl_built, ccl_built, cuda_built, rocm_built
 from horovod.tensorflow.mpi_ops import ProcessSet, global_process_set, add_process_set, remove_process_set
-from horovod.tensorflow.mpi_ops import Average, Sum, Adasum
+from horovod.tensorflow.mpi_ops import Average, Sum, Adasum, Min, Max
 from horovod.tensorflow.mpi_ops import handle_average_backwards_compatibility, check_num_rank_power_of_2
-from horovod.tensorflow.util import _executing_eagerly, _make_subgraph, _cache, vars_to_refs, refs_to_vars
+from horovod.tensorflow.util import _executing_eagerly, _make_subgraph, _cache, vars_to_refs, refs_to_vars, _min_allreduced_indexed_slices, _max_allreduced_indexed_slices
 from horovod.tensorflow.mpi_ops import join
 from horovod.tensorflow.sync_batch_norm import SyncBatchNormalization
 from horovod.tensorflow.gradient_aggregation import LocalGradientAggregationHelper
@@ -97,6 +97,8 @@ def allreduce(tensor, average=None, device_dense='', device_sparse='',
         if op == Adasum:
             raise NotImplementedError('The Adasum reduction does not currently support sparse tensors. As a '
                                       'workaround please pass sparse_as_dense=True to DistributedOptimizer')
+
+
         with tf.device(device_sparse):
             # For IndexedSlices, do two allgathers instead of an allreduce.
             horovod_size = tf.cast(size_op(process_set_id=process_set.process_set_id)
@@ -105,11 +107,16 @@ def allreduce(tensor, average=None, device_dense='', device_sparse='',
             values = allgather(tensor.values, process_set=process_set)
             indices = allgather(tensor.indices, process_set=process_set)
 
+        if op == Max:
+            return _min_allreduced_indexed_slices(values, indices, tensor.dense_shape)
+        elif op == Min:
+            return _max_allreduced_indexed_slices(values, indices, tensor.dense_shape)
+        else:
             # To make this operation into an average, divide allgathered values by
             # the Horovod size.
             new_values = (values / horovod_size) if op == Average else values
-        return tf.IndexedSlices(new_values, indices,
-                                dense_shape=tensor.dense_shape)
+            return tf.IndexedSlices(new_values, indices,
+                                    dense_shape=tensor.dense_shape)
     else:
         average_in_framework = False
         if rocm_built():
@@ -122,11 +129,11 @@ def allreduce(tensor, average=None, device_dense='', device_sparse='',
                                    if int(os.environ.get("HOROVOD_ELASTIC", 0)) else process_set.size(),
                                    dtype=tensor.dtype)
             tensor_compressed, ctx = compression.compress(tensor)
-            summed_tensor_compressed = _allreduce(tensor_compressed, op=op,
+            reduced_tensor_compressed = _allreduce(tensor_compressed, op=op,
                                                   prescale_factor=prescale_factor,
                                                   postscale_factor=postscale_factor,
                                                   name=name, process_set=process_set)
-            summed_tensor = compression.decompress(summed_tensor_compressed, ctx)
+            reduced_tensor = compression.decompress(reduced_tensor_compressed, ctx)
             if op == Adasum:
                 if process_set != global_process_set:
                     raise NotImplementedError("Adasum does not support non-global process sets yet.")
@@ -141,23 +148,23 @@ def allreduce(tensor, average=None, device_dense='', device_sparse='',
                         if rocm_built():
                             horovod_local_size = tf.cast(local_size_op() if int(os.environ.get("HOROVOD_ELASTIC", 0)) else local_size(),
                                                          dtype=tensor.dtype)
-                            new_tensor = summed_tensor / horovod_local_size
+                            new_tensor = reduced_tensor / horovod_local_size
                         else:
-                            new_tensor = summed_tensor
+                            new_tensor = reduced_tensor
                     else:
                         warnings.warn('Adasum reduction does not currently support GPU reduction using MPI. Tensors '
                                       'are copied to CPU memory instead. To use Adasum for GPU reduction, please '
                                       'compile Horovod with HOROVOD_GPU_OPERATIONS=NCCL.')
-                        new_tensor = summed_tensor
+                        new_tensor = reduced_tensor
                 else:
                     if not check_num_rank_power_of_2(size()):
                         raise NotImplementedError('Running Adasum with non-power of 2 ranks is not supported yet.')
-                    new_tensor = summed_tensor
+                    new_tensor = reduced_tensor
             else:
                 if rocm_built():
-                    new_tensor = (summed_tensor / horovod_size) if average_in_framework else summed_tensor
+                    new_tensor = (reduced_tensor / horovod_size) if average_in_framework else reduced_tensor
                 else:
-                    new_tensor = summed_tensor
+                    new_tensor = reduced_tensor
         return new_tensor
 
 def grouped_allreduce(tensors, average=None, device_dense='', device_sparse='',
@@ -181,7 +188,7 @@ def grouped_allreduce(tensors, average=None, device_dense='', device_sparse='',
             raise NotImplementedError('The Adasum reduction does not currently support sparse tensors. As a '
                                       'workaround please pass sparse_as_dense=True to DistributedOptimizer')
         with tf.device(device_sparse):
-            new_values = []
+            grouped_results = []
             for tensor in tensors:
                 # For IndexedSlices, do two allgathers instead of an allreduce.
                 horovod_size = tf.cast(size_op(process_set_id=process_set.process_set_id)
@@ -189,20 +196,30 @@ def grouped_allreduce(tensors, average=None, device_dense='', device_sparse='',
                                        dtype=tensor.values.dtype)
                 values = allgather(tensor.values, process_set=process_set)
                 indices = allgather(tensor.indices, process_set=process_set)
-
-                # To make this operation into an average, divide allgathered values by
-                # the Horovod size.
-                new_values += (values / horovod_size) if op == Average else values
-        return [tf.IndexedSlices(x, indices,
-                                 dense_shape=t.dense_shape) for x,t in zip(new_values, tensors)]
+                if op == Max:
+                    grouped_results.append(
+                        _min_allreduced_indexed_slices(values, indices, tensor.dense_shape)
+                    )
+                elif op == Min:
+                    grouped_results.append(
+                        _max_allreduced_indexed_slices(values, indices, tensor.dense_shape)
+                    )
+                else:
+                    # To make this operation into an average, divide allgathered values by
+                    # the Horovod size.
+                    new_values = (values / horovod_size) if op == Average else values
+                    grouped_results.append(
+                        tf.IndexedSlices(new_values, indices, dense_shape=tensor.dense_shape)
+                    )
+            return grouped_results
     else:
         with tf.device(device_dense):
             tensors_compressed, ctxs = zip(*[compression.compress(tensor) for tensor in tensors])
-            summed_tensors_compressed = _grouped_allreduce(tensors_compressed, op=op,
+            reduced_tensors_compressed = _grouped_allreduce(tensors_compressed, op=op,
                                                            prescale_factor=prescale_factor,
                                                            postscale_factor=postscale_factor,
                                                            process_set=process_set)
-            summed_tensors = [compression.decompress(t, ctx) for t, ctx in zip(summed_tensors_compressed, ctxs)]
+            reduced_tensors = [compression.decompress(t, ctx) for t, ctx in zip(reduced_tensors_compressed, ctxs)]
             if op == Adasum:
                 if process_set != global_process_set:
                     raise NotImplementedError("Adasum does not support non-global process sets yet.")
@@ -216,31 +233,31 @@ def grouped_allreduce(tensors, average=None, device_dense='', device_sparse='',
                                 'Running GPU Adasum with non-power of 2 nodes is not supported yet.')
                         if rocm_built():
                             new_tensors = []
-                            for tensor in summed_tensors:
+                            for tensor in reduced_tensors:
                               horovod_local_size = tf.cast(local_size_op() if int(os.environ.get("HOROVOD_ELASTIC", 0)) else local_size(),
                                                            dtype=tensor.dtype)
                               new_tensors += tensor / horovod_local_size
                         else:
-                            new_tensors = summed_tensors
+                            new_tensors = reduced_tensors
                     else:
                         warnings.warn('Adasum reduction does not currently support GPU reduction using MPI. Tensors '
                                       'are copied to CPU memory instead. To use Adasum for GPU reduction, please '
                                       'compile Horovod with HOROVOD_GPU_OPERATIONS=NCCL.')
-                        new_tensors = summed_tensors
+                        new_tensors = reduced_tensors
                 else:
                     if not check_num_rank_power_of_2(size()):
                         raise NotImplementedError('Running Adasum with non-power of 2 ranks is not supported yet.')
-                    new_tensors = summed_tensors
+                    new_tensors = reduced_tensors
             else:
                 if rocm_built():
                     new_tensors = []
-                    for tensor in summed_tensors:
+                    for tensor in reduced_tensors:
                         horovod_size = tf.cast(size_op(process_set_id=process_set.process_set_id)
                                                if int(os.environ.get("HOROVOD_ELASTIC", 0)) else process_set.size(),
                                                dtype=tensor.dtype)
                         new_tensors += (tensor / horovod_size) if average_in_framework else tensor
                 else:
-                    new_tensors = summed_tensors
+                    new_tensors = reduced_tensors
         return new_tensors
 
 def _allreduce_cond(tensor, *args, process_set=global_process_set, **kwargs):

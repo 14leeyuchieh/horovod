@@ -33,10 +33,12 @@ namespace common {
 Status CheckInitialized();
 
 enum ReduceOp {
-    AVERAGE = 0, // This value should never appear past framework code, as
-                 // averaging is taken care of there.
-    SUM = 1,
-    ADASUM = 2
+  AVERAGE = 0, // This value should never appear past framework code, as
+               // averaging is taken care of there.
+  SUM = 1,
+  ADASUM = 2,
+  MIN = 3,
+  MAX = 4,
 };
 
 extern "C" {
@@ -81,29 +83,35 @@ int horovod_mpi_threads_supported();
 // C interface to return flag indicating whether MPI is enabled.
 bool horovod_mpi_enabled();
 
-// C interface to return flag indicating whether Horovod was compiled with MPI support.
+// C interface to return flag indicating whether Horovod was compiled with MPI
+// support.
 bool horovod_mpi_built();
 
 // C interface to return flag indicating whether Gloo is enabled.
 bool horovod_gloo_enabled();
 
-// C interface to return flag indicating whether Horovod was compiled with Gloo support.
+// C interface to return flag indicating whether Horovod was compiled with Gloo
+// support.
 bool horovod_gloo_built();
 
-// C interface to return integer indicating whether Horovod was compiled with NCCL support.
-// Returns NCCL_VERSION_CODE if NCCL is available, else returns 0.
+// C interface to return integer indicating whether Horovod was compiled with
+// NCCL support. Returns NCCL_VERSION_CODE if NCCL is available, else returns 0.
 int horovod_nccl_built();
 
-// C interface to return flag indicating whether Horovod was compiled with DDL support.
+// C interface to return flag indicating whether Horovod was compiled with DDL
+// support.
 bool horovod_ddl_built();
 
-// C interface to return flag indicating whether Horovod was compiled with CCL support.
+// C interface to return flag indicating whether Horovod was compiled with CCL
+// support.
 bool horovod_ccl_built();
 
-// C interface to return flag indicating whether Horovod was compiled with CUDA support.
+// C interface to return flag indicating whether Horovod was compiled with CUDA
+// support.
 bool horovod_cuda_built();
 
-// C interface to return flag indicating whether Horovod was compiled with ROCm support.
+// C interface to return flag indicating whether Horovod was compiled with ROCm
+// support.
 bool horovod_rocm_built();
 
 // C interface to return value of the ReduceOp::AVERAGE enum field.
@@ -129,7 +137,7 @@ extern const int HOROVOD_PROCESS_SET_ERROR_SHUTDOWN;
 // HOROVOD_PROCESS_SET_ERROR_INIT if Horovod is not initialized,
 // HOROVOD_PROCESS_SET_ERROR_SHUTDOWN if Horovod is shutting down,
 // HOROVOD_PROCESS_SET_ERROR_DYNAMIC if dynamic process sets are not enabled,
-int horovod_add_process_set(const int *ranks, int nranks);
+int horovod_add_process_set(const int* ranks, int nranks);
 
 // C interface to deregister a previously registered process set (blocking).
 // Returns process_set_id or an error code:
@@ -177,31 +185,24 @@ int horovod_process_set_ranks(int id, int* ranks_prealloc);
 // corresponding to this communicator.
 int horovod_comm_process_set(MPI_Comm comm);
 #endif // HAVE_MPI
-
 }
 
-Status EnqueueTensorAllreduce(std::shared_ptr<OpContext> context,
-                              std::shared_ptr<Tensor> tensor,
-                              std::shared_ptr<Tensor> output,
-                              ReadyEventList ready_event_list,
-                              std::string name, int device,
-                              StatusCallback callback,
-                              ReduceOp reduce_op = ReduceOp::SUM,
-                              double prescale_factor = 1.0,
-                              double postscale_factor = 1.0,
-                              int32_t process_set_id = 0);
+Status EnqueueTensorAllreduce(
+    std::shared_ptr<OpContext> context, std::shared_ptr<Tensor> tensor,
+    std::shared_ptr<Tensor> output, ReadyEventList ready_event_list,
+    std::string name, int device, StatusCallback callback,
+    ReduceOp reduce_op = ReduceOp::SUM, double prescale_factor = 1.0,
+    double postscale_factor = 1.0, int32_t process_set_id = 0);
 
-Status EnqueueTensorAllreduces(std::vector<std::shared_ptr<OpContext>>& contexts,
-                               std::vector<std::shared_ptr<Tensor>>& tensors,
-                               std::vector<std::shared_ptr<Tensor>>& outputs,
-                               std::vector<ReadyEventList>& ready_event_lists,
-                               std::vector<std::string>& names,
-                               int device,
-                               std::vector<StatusCallback>& callbacks,
-                               ReduceOp reduce_op = ReduceOp::SUM,
-                               double prescale_factor = 1.0,
-                               double postscale_factor = 1.0,
-                               int32_t process_set_id = 0);
+Status EnqueueTensorAllreduces(
+    std::vector<std::shared_ptr<OpContext>>& contexts,
+    std::vector<std::shared_ptr<Tensor>>& tensors,
+    std::vector<std::shared_ptr<Tensor>>& outputs,
+    std::vector<ReadyEventList>& ready_event_lists,
+    std::vector<std::string>& names, int device,
+    std::vector<StatusCallback>& callbacks, ReduceOp reduce_op = ReduceOp::SUM,
+    double prescale_factor = 1.0, double postscale_factor = 1.0,
+    int32_t process_set_id = 0);
 
 Status EnqueueTensorAllgather(std::shared_ptr<OpContext> context,
                               std::shared_ptr<Tensor> tensor,
@@ -227,10 +228,15 @@ Status EnqueueTensorAlltoall(std::shared_ptr<OpContext> context,
                              int32_t process_set_id = 0);
 
 Status EnqueueJoin(std::shared_ptr<OpContext> context,
+<<<<<<< HEAD
                    std::shared_ptr<Tensor> output_last_joined_rank,
                    ReadyEventList ready_event_list,
                    const std::string& name, int device,
                    StatusCallback callback,
+=======
+                   ReadyEventList ready_event_list, const std::string& name,
+                   int device, StatusCallback callback,
+>>>>>>> f959d79... Add support for min/max allreduce
                    int32_t process_set_id = 0);
 
 } // namespace common

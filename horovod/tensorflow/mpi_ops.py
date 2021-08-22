@@ -83,6 +83,8 @@ rocm_built = _basics.rocm_built
 Average = _basics.Average
 Sum = _basics.Sum
 Adasum = _basics.Adasum
+Min = _basics.Min
+Max = _basics.Max
 
 is_homogeneous = _basics.is_homogeneous
 
@@ -115,8 +117,8 @@ def _allreduce(tensor, name=None, op=Sum, prescale_factor=1.0, postscale_factor=
     will not start until all processes are ready to send and receive the tensor.
 
     Returns:
-      A tensor of the same shape and type as `tensor`, summed across all
-      processes.
+      A tensor of the same shape and type as `tensor`, with op applied across all
+      tensors from all the processes.
     """
     if name is None and not _executing_eagerly():
         name = 'HorovodAllreduce_%s' % _normalize_name(tensor.name)

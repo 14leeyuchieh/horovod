@@ -43,6 +43,10 @@ public:
 
   Status ExecuteBroadcast(std::vector<TensorTableEntry>& entries, const Response& response) const;
 
+  Status ExecuteAllreducemin(std::vector<TensorTableEntry>& entries, const Response& response) const;
+
+  Status ExecuteAllreducemax(std::vector<TensorTableEntry>& entries, const Response& response) const;
+
   Status ExecuteAlltoall(std::vector<TensorTableEntry>& entries, const Response& response) const;
 
   Status ExecuteError(std::vector<TensorTableEntry>& entries, const Response& response) const;
@@ -65,6 +69,8 @@ private:
   std::vector<std::shared_ptr<AlltoallOp>> alltoall_ops_;
   std::shared_ptr<JoinOp> join_op_;
   std::vector<std::shared_ptr<AllreduceOp>> adasum_ops_;
+  std::vector<std::shared_ptr<AllreduceOp>> allreducemax_ops_;
+  std::vector<std::shared_ptr<AllreduceOp>> allreducemin_ops_;
   std::shared_ptr<ErrorOp> error_op_;
 };
 

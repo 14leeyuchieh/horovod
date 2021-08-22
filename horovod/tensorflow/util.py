@@ -54,3 +54,42 @@ def refs_to_vars(refs):
     if isinstance(refs, tuple):
         return [refs_to_vars(r) for r in refs]
     return refs.deref()
+
+
+def _min_allreduced_indexed_slices(values, indices, shape):
+    """Reduce allgathered IndexedSlices by values and index
+
+    The operation segments the value rows by unique indices
+    and apply the respective min operation
+
+    Arguments:
+        values: A `Tensor` of any dtype with shape `[D0, D1, ..., Dn]`
+        indices: A 1-D integer `Tensor` with shape `[D0]`
+        shape: a tuple of the dense tensor shape
+
+    Returns:
+        A IndexedSlice reduced by the corresponding mapping destination
+        of the dense tensor
+    """
+    unique_indices, new_index_positions = tf.unique(indices)
+    new_values = tf.math.unsorted_segment_min(values, new_index_positions, tf.shape(unique_indices)[0])
+    return tf.IndexedSlices(new_values, unique_indices, dense_shape=shape)
+
+def _max_allreduced_indexed_slices(values, indices, shape):
+    """Reduce allgathered IndexedSlices by values and index
+
+    The operation segments the value rows by unique indices
+    and apply the respective min operation
+
+    Arguments:
+        values: A `Tensor` of any dtype with shape `[D0, D1, ..., Dn]`
+        indices: A 1-D integer `Tensor` with shape `[D0]`
+        shape: a tuple of the dense tensor shape
+
+    Returns:
+        A IndexedSlice reduced by the corresponding mapping destination
+        of the dense tensor
+    """
+    unique_indices, new_index_positions = tf.unique(indices)
+    new_values = tf.math.unsorted_segment_max(values, new_index_positions, tf.shape(unique_indices)[0])
+    return tf.IndexedSlices(new_values, unique_indices, dense_shape=shape)

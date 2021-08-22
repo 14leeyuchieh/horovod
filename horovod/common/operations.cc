@@ -1196,6 +1196,14 @@ int horovod_reduce_op_adasum() {
   return ReduceOp::ADASUM;
 }
 
+int horovod_reduce_op_min() {
+  return ReduceOp::MIN;
+}
+
+int horovod_reduce_op_max() {
+  return ReduceOp::MAX;
+}
+
 const int HOROVOD_PROCESS_SET_ERROR_INIT = -1;
 const int HOROVOD_PROCESS_SET_ERROR_DYNAMIC = -2;
 const int HOROVOD_PROCESS_SET_ERROR_UNKNOWN_SET = -3;
@@ -1438,10 +1446,13 @@ Status EnqueueTensorAllreduces(std::vector<std::shared_ptr<OpContext>>& contexts
 
     if (reduce_op == ReduceOp::ADASUM) {
       message.set_request_type(Request::ADASUM);
+    } else if (reduce_op == ReduceOp::MIN) {
+      message.set_request_type(Request::ALLREDUCE_MIN);
+    } else if (reduce_op == ReduceOp::MAX) {
+      message.set_request_type(Request::ALLREDUCE_MAX);
     } else {
       message.set_request_type(Request::ALLREDUCE);
     }
-
     message.set_tensor_shape(tensors[n]->shape().to_vector());
     messages.push_back(std::move(message));
 

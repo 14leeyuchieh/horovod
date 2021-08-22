@@ -73,6 +73,11 @@ struct MPIContext {
 
   MPI_Op GetMPISumOp(DataType dtype) const;
 
+  MPI_Op GetMPIMinOp(DataType dtype) const;
+
+  MPI_Op GetMPIMaxOp(DataType dtype) const;
+
+
   // Communicators handled here are restricted to a single process set.
   // If the running process is not part of that set, these communicators
   // remain MPI_COMM_NULL.

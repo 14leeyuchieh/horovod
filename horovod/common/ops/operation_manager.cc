@@ -93,6 +93,26 @@ Status OperationManager::ExecuteAdasum(std::vector<TensorTableEntry>& entries,
   throw std::logic_error("No Adasum operation enabled");
 }
 
+Status OperationManager::ExecuteAllreducemin(std::vector<TensorTableEntry>& entries,
+                                          const Response& response) const {
+  for (auto& op : allreducemin_ops_) {
+    if (op->Enabled(*param_manager_, entries, response)) {
+      return op->Execute(entries, response);
+    }
+  }
+  throw std::logic_error("No Allreducemin operation enabled");
+}
+
+Status OperationManager::ExecuteAllreducemax(std::vector<TensorTableEntry>& entries,
+                                          const Response& response) const {
+  for (auto& op : allreducemax_ops_) {
+    if (op->Enabled(*param_manager_, entries, response)) {
+      return op->Execute(entries, response);
+    }
+  }
+  throw std::logic_error("No Allreducemax operation enabled");
+}
+
 Status OperationManager::ExecuteError(std::vector<TensorTableEntry>& entries,
                                       const Response& response) const {
   return error_op_->Execute(entries, response);
@@ -113,6 +133,10 @@ Status OperationManager::ExecuteOperation(std::vector<TensorTableEntry>& entries
     return ExecuteJoin(entries, response, process_set);
   } else if (response.response_type() == Response::ADASUM) {
     return ExecuteAdasum(entries, response);
+  } else if (response.response_type() == Response::ALLREDUCE_MIN) {
+    return ExecuteAllreducemin(entries, response);
+  } else if (response.response_type() == Response::ALLREDUCE_MAX) {
+    return ExecuteAllreducemax(entries, response);
   } else if (response.response_type() == Response::ERROR) {
     return ExecuteError(entries, response);
   } else {

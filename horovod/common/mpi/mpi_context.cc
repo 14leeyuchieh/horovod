@@ -64,6 +64,22 @@ MPI_Op MPIContext::GetMPISumOp(DataType dtype) const {
   return dtype == HOROVOD_FLOAT16 ? mpi_float16_sum : MPI_SUM;
 }
 
+MPI_Op MPIContext::GetMPIMinOp(DataType dtype) const {
+  if (dtype == HOROVOD_FLOAT16) {
+    throw std::logic_error("Type " + DataType_Name(dtype) +
+                           " is not supported in MPI AllReduce Min Operation.");
+  }
+  return MPI_MIN;
+}
+
+MPI_Op MPIContext::GetMPIMaxOp(DataType dtype) const {
+  if (dtype == HOROVOD_FLOAT16) {
+    throw std::logic_error("Type " + DataType_Name(dtype) +
+                           " is not supported in MPI AllReduce Max Operation.");
+  }
+  return MPI_MAX;
+}
+
 MPI_Comm MPIContext::GetMPICommunicator(Communicator comm) const {
   switch (comm) {
   case GLOBAL:
