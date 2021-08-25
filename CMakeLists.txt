@@ -16,6 +16,10 @@ if(${CMAKE_VERSION} VERSION_GREATER "3.4.0")
   endif()
 endif()
 
+if(NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY_ROOT)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_ROOT ./build/lib.linux-x86_64-3.7/horovod/)
+endif()
+
 project(horovod CXX)
 
 set(CMAKE_CXX_STANDARD 14)
