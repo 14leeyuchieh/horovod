@@ -59,6 +59,8 @@ If you have not installed specific DL frameworks yet, add ``[dev]`` to install t
 In develop mode, you can edit the Horovod source directly in the repo folder. For Python code, the changes will take effect
 immediately. For **C++/CUDA code**, the ``... pip install -v -e .`` command needs to be invoked again to perform an incremental build.
 
+**Note:** For enterprise developers on Centos, please check `this <centos_setup.rst>`_ document prior to building Horovod.
+
 Testing
 -------
 
@@ -113,6 +115,10 @@ a new test artifact will be generated in Buildkite that either succeeds or fails
 In our AWS configuration, GPU tests are run with 4 GPUs per container. Most tests are run with 2 worker processes
 each, however, model parallelism require 2 GPUs per worker, requiring 4 GPUs total.
 
+Text Editor Setup
+-----------------
+
+For users of VSCode, setup documentation is attached `here <vscode_setup.rst>`_.
 
 Documentation
 -------------
