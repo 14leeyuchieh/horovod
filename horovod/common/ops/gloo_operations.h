@@ -27,7 +27,7 @@ namespace common {
 
 class IGlooAlgorithms {
 public:
-  virtual void Allreduce(void* buffer_data, int num_elements) = 0;
+  virtual void Allreduce(void* buffer_data, int num_elements, Response::ResponseType response_type) = 0;
 
   virtual void Allgather(void* buffer_data, void* buffer_out, int* recvcounts,
                          int* displcmnts) = 0;
@@ -48,7 +48,7 @@ public:
 
   ~GlooAlgorithms() = default;
 
-  void Allreduce(void* buffer_data, int num_elements) override;
+  void Allreduce(void* buffer_data, int num_elements, Response::ResponseType response_type) override;
 
   void Allgather(void* buffer_data, void* buffer_out, int* recvcounts,
                  int* displcmnts) override;

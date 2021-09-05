@@ -30,8 +30,6 @@
 namespace horovod {
 namespace common {
 
-enum MPIReduceOpType { SUM, MIN, MAX };
-
 class MPIAllreduce : public AllreduceOp {
 public:
   MPIAllreduce(HorovodGlobalState* global_state);

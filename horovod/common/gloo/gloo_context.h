@@ -16,7 +16,9 @@
 #ifndef HOROVOD_GLOO_CONTEXT_H
 #define HOROVOD_GLOO_CONTEXT_H
 
+#include "gloo/allreduce.h"
 #include "gloo/context.h"
+
 
 #include "../common.h"
 #include "../logging.h"
@@ -67,6 +69,9 @@ struct GlooContext {
   bool IsEnabled() const { return enabled_; }
 
   std::shared_ptr<gloo::Context> global_ctx;
+
+  template <typename T>
+  gloo::AllreduceOptions::Func GetGlooReduceOp(Response::ResponseType response_type) const;
 
   // Contexts for the associated process set:
   std::shared_ptr<gloo::Context> ctx = nullptr;  // entire process set

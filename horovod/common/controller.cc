@@ -530,10 +530,10 @@ Response Controller::ConstructResponse(const std::string& name, int joined_size)
     }
   }
 
-#if !HAVE_MPI || HAVE_GPU
+#if HAVE_DDL || HAVE_CCL
   if (message_type == Request::ALLREDUCE_MIN || message_type == Request::ALLREDUCE_MAX) {
     error = true;
-    error_message_stream << "ALLREDUCE_MIN and ALLREDUCE_MAX  are only supported for MPI using CPU" << ".";
+    error_message_stream << "ALLREDUCE_MIN and ALLREDUCE_MAX are only supported for tensor operations on MPI, GLOO, and NCCL" << ".";
   }
 #endif
 

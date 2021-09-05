@@ -63,13 +63,11 @@ GlooAlgorithms<T>::GlooAlgorithms(GlooContext* gloo_context)
     : gloo_context_(gloo_context) {}
 
 template <typename T>
-void GlooAlgorithms<T>::Allreduce(void* buffer_data, int num_elements) {
+void GlooAlgorithms<T>::Allreduce(void* buffer_data, int num_elements, Response::ResponseType response_type) {
   gloo::AllreduceOptions opts(gloo_context_->ctx);
   opts.setOutput<T>(static_cast<T*>(buffer_data), (size_t) num_elements);
-
-  void (*func)(void*, const void*, const void*, size_t) = &::gloo::sum<T>;
-  opts.setReduceFunction(gloo::AllreduceOptions::Func(func));
-
+  gloo::AllreduceOptions::Func func = gloo_context_->GetGlooReduceOp<T>(response_type);
+  opts.setReduceFunction(func);
   gloo::allreduce(opts);
 }
 
@@ -151,7 +149,7 @@ Status GlooAllreduce::Execute(std::vector<TensorTableEntry>& entries,
   timeline.ActivityStartAll(entries, GLOO_ALLREDUCE);
   std::unique_ptr<IGlooAlgorithms> gloo_algos(
       GetAlgorithmsForType(first_entry.tensor->dtype(), &gloo_context));
-  gloo_algos->Allreduce(buffer_data, num_elements);
+  gloo_algos->Allreduce(buffer_data, num_elements, response.response_type());
   timeline.ActivityEndAll(entries);
 
   if (response.postscale_factor() != 1.0) {
@@ -220,7 +218,7 @@ Status GlooAllgather::Execute(std::vector<TensorTableEntry>& entries,
     for (size_t ec = 0; ec < entries.size(); ++ec) {
       delete[] entry_component_sizes[ec];
       delete[] entry_component_offsets[ec];
-    }   
+    }
     delete[] entry_component_sizes;
     delete[] entry_component_offsets;
     delete[] recvcounts;

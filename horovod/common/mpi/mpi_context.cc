@@ -60,6 +60,21 @@ MPI_Datatype MPIContext::GetMPIDataType(const DataType dtype) const {
   }
 }
 
+
+MPI_Op MPIContext::GetMPIReduceOp(Response::ResponseType response_type, DataType dtype) const {
+  switch (response_type) {
+    case Response::ResponseType::ALLREDUCE:
+      return this->GetMPISumOp(dtype);
+    case Response::ResponseType::ALLREDUCE_MIN:
+      return this->GetMPIMinOp(dtype);
+    case Response::ResponseType::ALLREDUCE_MAX:
+      return this->GetMPIMaxOp(dtype);
+    default:
+      throw std::logic_error("MPI_Allreduce operation " + Response::ResponseType_Name(response_type) +  " not supported.");
+  }
+}
+
+
 MPI_Op MPIContext::GetMPISumOp(DataType dtype) const {
   return dtype == HOROVOD_FLOAT16 ? mpi_float16_sum : MPI_SUM;
 }

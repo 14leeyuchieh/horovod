@@ -45,6 +45,8 @@ struct NCCLContext {
 
   void ErrorCheck(std::string op_name, ncclResult_t nccl_result, ncclComm_t& nccl_comm);
 
+  ncclRedOp_t GetNCCLReduceOp(Response::ResponseType response_type) const;
+
   void ShutDown();
 };
 

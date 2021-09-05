@@ -71,6 +71,8 @@ struct MPIContext {
 
   MPI_Datatype GetMPIDataType(DataType dtype) const;
 
+  MPI_Op GetMPIReduceOp(Response::ResponseType response_type, DataType dtype) const;
+
   MPI_Op GetMPISumOp(DataType dtype) const;
 
   MPI_Op GetMPIMinOp(DataType dtype) const;

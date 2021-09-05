@@ -66,18 +66,19 @@ Status MPI_GPUAllreduce::Execute(std::vector<TensorTableEntry>& entries, const R
   timeline.ActivityStartAll(entries, MPI_ALLREDUCE);
   const void* sendbuf = entries.size() > 1 || fused_input_data == buffer_data
                         ? MPI_IN_PLACE : fused_input_data;
-  int op =
+  MPI_Op op = mpi_context.GetMPIReduceOp(response.response_type(), first_entry.tensor->dtype());
+  int reduce_result =
       MPI_Allreduce(sendbuf, buffer_data, (int)num_elements,
                     mpi_context.GetMPIDataType(first_entry.tensor),
-                    mpi_context.GetMPISumOp(first_entry.tensor->dtype()),
+                    op,
                     mpi_context.GetMPICommunicator(Communicator::GLOBAL));
-  if (op != MPI_SUCCESS) {
+  if (reduce_result != MPI_SUCCESS) {
     throw std::runtime_error("MPI_Allreduce failed, see MPI output for details.");
   }
   timeline.ActivityEndAll(entries);
 
   if (response.postscale_factor() != 1.0) {
-    // Execute postscaling op
+    // Execute postscaling reduce_result
     ScaleBuffer(response.postscale_factor(), entries, buffer_data, buffer_data, num_elements);
   }
 

@@ -93,6 +93,21 @@ std::shared_ptr<gloo::Context> Rendezvous(const std::string& prefix,
   return context;
 }
 
+template <typename T>
+gloo::AllreduceOptions::Func GlooContext::GetGlooReduceOp(Response::ResponseType response_type) const {
+  switch (response_type) {
+    case Response::ResponseType::ALLREDUCE:
+      return gloo::AllreduceOptions::Func(&::gloo::sum<T>);
+    case Response::ResponseType::ALLREDUCE_MIN:
+      return gloo::AllreduceOptions::Func(&::gloo::min<T>);
+    case Response::ResponseType::ALLREDUCE_MAX:
+      return gloo::AllreduceOptions::Func(&::gloo::max<T>);
+    default:
+      throw std::logic_error("GLOO operation " + Response::ResponseType_Name(response_type) +  " not supported.");
+  }
+}
+
+
 #if HAVE_MPI
 void GlooContext::InitializeFromMPI(MPIContext& mpi_ctx,
                                     const std::string& gloo_iface) {
@@ -313,7 +328,7 @@ void GlooContext::InitializeForProcessSet(const GlooContext& global_context,
       EnumerateSubRanks(global_context.ctx, global_context.local_ctx);
   auto global_context_all_cross_ranks =
       EnumerateSubRanks(global_context.ctx, global_context.cross_ctx);
-  
+
   auto global_context_rank = global_context.ctx->rank;
   auto rank = static_cast<int>(
       std::distance(ranks.begin(), std::find(ranks.begin(), ranks.end(),
@@ -321,15 +336,15 @@ void GlooContext::InitializeForProcessSet(const GlooContext& global_context,
   auto size = static_cast<int>(ranks.size());
   bool current_process_included = (rank < size);
   if (!current_process_included) {
-    // leaving null: ctx, local_ctx, and cross_ctx 
+    // leaving null: ctx, local_ctx, and cross_ctx
     return;
   }
   LOG(DEBUG) << "Global Gloo context for process set with rank: " << rank
              << ", size: " << size;
-  
+
   std::string process_set_suffix = "_process_set_hash_" + process_set_hash;
 
-  // 1) process-set-limited global context 
+  // 1) process-set-limited global context
   ctx = Rendezvous(HOROVOD_GLOO_GLOBAL_PREFIX + process_set_suffix,
                    rendezvous_addr_env, rendezvous_port, rank, size, dev,
                    timeout_);
@@ -357,7 +372,7 @@ void GlooContext::InitializeForProcessSet(const GlooContext& global_context,
     LOG(DEBUG) << "Local Gloo context initialized for process set with hash "
                << process_set_hash << ".";
   }
-  
+
   // 3) process-set-limited cross context
   auto global_context_cross_ranks =
       RanksIntersection(ranks, global_context_all_cross_ranks);

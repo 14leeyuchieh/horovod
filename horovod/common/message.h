@@ -153,7 +153,7 @@ private:
 class Response {
 public:
   enum ResponseType {
-    ALLREDUCE = 0, ALLGATHER = 1, BROADCAST = 2, JOIN = 3, ADASUM = 4, ALLTOALL= 5, ALLREDUCE_MIN=6, ALLREDUCE_MAX=7, ERROR = 6
+    ALLREDUCE = 0, ALLGATHER = 1, BROADCAST = 2, JOIN = 3, ADASUM = 4, ALLTOALL= 5, ALLREDUCE_MIN=6, ALLREDUCE_MAX=7, ERROR = 8
   };
 
   static const std::string& ResponseType_Name(ResponseType value);

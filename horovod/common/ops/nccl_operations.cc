@@ -62,6 +62,19 @@ void NCCLContext::ShutDown(){
   nccl_comms.clear();
 }
 
+ncclRedOp_t NCCLContext::GetNCCLReduceOp(Response::ResponseType response_type) {
+  switch (response_type) {
+    case Response::ResponseType::ALLREDUCE:
+      return ncclSum;
+    case Response::ResponseType::ALLREDUCE_MIN:
+      return ncclMin;
+    case Response::ResponseType::ALLREDUCE_MAX:
+      return ncclMax;
+    default:
+      throw std::logic_error("NCCL operation " + Response::ResponseType_Name(response_type) +  " not supported.");
+  }
+}
+
 void NCCLOpContext::InitNCCLComm(const std::vector<TensorTableEntry>& entries,
                                  const std::vector<int32_t>& nccl_device_map) {
   assert(!entries.empty());
@@ -167,6 +180,8 @@ Status NCCLAllreduce::Execute(std::vector<TensorTableEntry>& entries,
   void* buffer_data;
   size_t buffer_len;
 
+  ncclRedOp_t op = nccl_context_.GetNCCLReduceOp(response.response_type());
+
   // Copy (and possibly scale) tensors into the fusion buffer.
   if (entries.size() > 1) {
     ScaleMemcpyInFusionBuffer(entries, fused_input_data, buffer_data, buffer_len, response.prescale_factor());
@@ -189,7 +204,7 @@ Status NCCLAllreduce::Execute(std::vector<TensorTableEntry>& entries,
   int64_t num_elements = buffer_len / DataType_Size(first_entry.tensor->dtype());
   auto nccl_result = ncclAllReduce(fused_input_data, buffer_data,
                                    (size_t) num_elements,
-                                   GetNCCLDataType(first_entry.tensor), ncclSum,
+                                   GetNCCLDataType(first_entry.tensor), op,
                                    *nccl_op_context_.nccl_comm_, *gpu_op_context_.stream);
   nccl_context_->ErrorCheck("ncclAllReduce", nccl_result, *nccl_op_context_.nccl_comm_);
   if (global_state_->timeline.Initialized()) {
@@ -271,6 +286,9 @@ NCCLHierarchicalAllreduce::Execute(std::vector<TensorTableEntry>& entries,
 
   int64_t num_elements = buffer_len / DataType_Size(first_entry.tensor->dtype());
 
+  ncclRedOp_t op = nccl_context_.GetNCCLReduceOp(response.response_type());
+  MPI_Op mpi_op = mpi_context.GetMPIReduceOp(response.response_type(), first_entry.tensor->dtype());
+
   if (response.prescale_factor() != 1.0) {
     // Execute prescaling op
     ScaleBuffer(response.prescale_factor(), entries, fused_input_data, buffer_data, num_elements);
@@ -343,7 +361,7 @@ NCCLHierarchicalAllreduce::Execute(std::vector<TensorTableEntry>& entries,
                                          buffer_data_at_rank_offset,
                                          (size_t) num_elements_per_rank,
                                          GetNCCLDataType(first_entry.tensor),
-                                         ncclSum, *nccl_op_context_.nccl_comm_, *gpu_op_context_.stream);
+                                         op, *nccl_op_context_.nccl_comm_, *gpu_op_context_.stream);
     nccl_context_->ErrorCheck("ncclReduceScatter", nccl_result, *nccl_op_context_.nccl_comm_);
     if (global_state_->timeline.Initialized()) {
       gpu_context_->RecordEvent(gpu_op_context_.event_queue, NCCL_REDUCESCATTER, *gpu_op_context_.stream);
@@ -356,7 +374,7 @@ NCCLHierarchicalAllreduce::Execute(std::vector<TensorTableEntry>& entries,
     auto nccl_result = ncclReduce(fused_input_data_remainder,
                                   buffer_data_remainder,
                                   (size_t) num_elements_remaining,
-                                  GetNCCLDataType(first_entry.tensor), ncclSum,
+                                  GetNCCLDataType(first_entry.tensor), op,
                                   root_rank, *nccl_op_context_.nccl_comm_, *gpu_op_context_.stream);
     nccl_context_->ErrorCheck("ncclReduce", nccl_result, *nccl_op_context_.nccl_comm_);
     if (global_state_->timeline.Initialized()) {
@@ -386,7 +404,7 @@ NCCLHierarchicalAllreduce::Execute(std::vector<TensorTableEntry>& entries,
     int op = MPI_Allreduce(MPI_IN_PLACE, gpu_op_context_.host_buffer,
                            (int) total_num_elements,
                            mpi_context.GetMPIDataType(first_entry.tensor),
-                           mpi_context.GetMPISumOp(first_entry.tensor->dtype()),
+                           mpi_op,
                            mpi_context.GetMPICommunicator(Communicator::CROSS));
     if (op != MPI_SUCCESS) {
       throw std::runtime_error("MPI_Allreduce failed, see MPI output for details.");
@@ -553,7 +571,7 @@ Status NCCLAllgather::Execute(std::vector<TensorTableEntry>& entries,
     for (size_t ec = 0; ec < entries.size(); ++ec) {
       delete[] entry_component_sizes[ec];
       delete[] entry_component_offsets[ec];
-    }   
+    }
     delete[] entry_component_sizes;
     delete[] entry_component_offsets;
     delete[] recvcounts;
