@@ -111,10 +111,12 @@ the attached gdb process comes in and sets ``var i`` to a non-zero value.
 
 
 2. Run pytest. For this example, we use ``test/parallel/test_tensorflow.py::test_horovod_allgather_error``.
+   The timeout is needed to avoid horovodrun from killing a worker in gdb (considered stalled).
+   Logs can be added to debug C++ issues.
 
 .. code-block:: bash
 
-    $ horovodrun  --verbose -np 2 pytest -v test/parallel/test_tensorflow.py -k "test_horovod_allgather_error"
+    $ horovodrun --gloo --gloo-timeout-seconds 10000 --output-filename gloo_result --log-level TRACE  --verbose -np 2 pytest -v test/parallel/test_tensorflow.py -k "test_horovod_allgather_error"
 
 
 3. Find the 2 running pytest via ``ps -ef | grep pytest``

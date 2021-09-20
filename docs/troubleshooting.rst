@@ -418,3 +418,29 @@ We recommended reinstalling Open MPI with the ``--enable-orterun-prefix-by-defau
 
 
 .. inclusion-marker-end-do-not-remove
+
+
+My Gitmodules are out of date. How do I update to the latest aligned with remote HEAD?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Check the version your submodule is on and sync against the remote HEAD.
+
+.. code-block:: bash
+
+    $ git submodule status
+
+This can be the cause if your horovod build is successful but Horovod can't be supported with any
+DL frameworks
+
+.. code-block:: bash
+
+    $ horovodrun --check-build
+
+To fix,
+
+.. code-block:: bash
+
+    $ git submodule deinit . // this is for cases where the .git/config is out of date but isn't syncing
+    $ git submodule sync // sync with remote submodule specified in .gitmodules
+    $ git submodule update --init --recursive --remote
+    $ git submodule status
